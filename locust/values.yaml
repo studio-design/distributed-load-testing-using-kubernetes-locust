@@ -1,0 +1,128 @@
+loadtest:
+  # loadtest.name -- a name used for resources and settings in this load test
+  name: locust-cluster
+  # loadtest.locust_locustfile -- the name of the locustfile
+  locust_locustfile: main.py
+  # loadtest.locust_locustfile_configmap -- name of a configmap containing your locustfile
+  locust_locustfile_configmap: loadtest-locustfile
+  # loadtest.locust_lib_configmap -- name of a configmap containing your lib
+  locust_lib_configmap: loadtest-lib
+  # loadtest.locust_host -- the host you will load test
+  locust_host: [TARGET_HOST]
+  # loadtest.pip_packages -- a list of extra python pip packages to install
+  pip_packages: 
+    - locust-influxdb-listener
+  # loadtest.headless -- whether to run locust with headless settings
+  headless: false
+
+image:
+  repository: locustio/locust
+  tag: 2.4.1
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  annotations: {}
+  extraLabels: {}
+    
+master:
+  # master.image -- A custom docker image including tag
+  image: ""  
+  # master.logLevel -- Log level. Can be INFO or DEBUG
+  logLevel: INFO
+  resources:
+    limits:
+      cpu: 800m
+      memory: 2048Mi
+    requests:
+      cpu: 800m
+      memory: 2048Mi  
+  serviceAccountAnnotations: {}
+  # master.envs_include_default -- Whether to include default environment variables
+  envs_include_default: true
+  # master.environment -- environment variables for the master
+  environment: {}
+  # master.args -- Any extra command args for the master
+  args: []
+  command:
+    - sh
+    - /config/docker-entrypoint.sh
+  strategy:
+    type: RollingUpdate
+  # master.pdb.enabled -- Whether to create a PodDisruptionBudget for the master pod
+  pdb:
+    enabled: true
+  # master.auth.enabled -- When enabled, UI basic auth will be enforced with the given username and password
+  auth:
+    enabled: false
+    username: ""
+    password: ""
+
+worker:
+  # worker.image -- A custom docker image including tag
+  image: ""  
+  # worker.logLevel -- Log level. Can be INFO or DEBUG
+  logLevel: INFO
+  replicas: 1
+  hpa:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 200
+    targetCPUUtilizationPercentage: 50
+  # worker.resources -- resources for the locust worker
+  # You must specify requests for CPU for autoscaling based on CPU utilization
+  # https://stackoverflow.com/questions/66605130/using-horizontal-pod-autoscaler-on-google-kubernetes-engine-fails-with-unable-t
+  resources:
+    limits:
+      cpu: 500m
+      memory: 4000Mi
+    requests:
+      cpu: 500m
+      memory: 4000Mi
+  serviceAccountAnnotations: {}
+  # worker.envs_include_default -- Whether to include default environment variables
+  envs_include_default: true
+  # worker.environment -- environment variables for the workers
+  environment: {}
+  # worker.args -- Any extra command args for the workers
+  args: []
+  command:
+    - sh
+    - /config/docker-entrypoint.sh
+  strategy:
+    type: RollingUpdate
+
+nameOverride: ""
+fullnameOverride: ""
+imagePullSecrets: []
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+ingress:
+  enabled: true
+  className: ""
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: locust-cluster-master.local
+      pathType: ImplementationSpecific
+      path: /
+  tls: []
+
+# extraConfigMaps -- Any extra configmaps to mount for the master and worker. Can be used for extra python packages
+extraConfigMaps: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+# extraLabels -- Any extra labels to apply to all resources
+extraLabels: {}  

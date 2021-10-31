@@ -1,0 +1,138 @@
+# EXEC_DIR should be passed in the parameter
+# ex: make EXEC_DIR=./projects/us_central/setup a
+# Environments required to run Terraform
+PROJECT_ID=<Project ID is here>
+# Cluster name must be shorter than 40 characters
+CLUSTER_NAME=<Cluster Name is here>
+CREDENTIALS="<Service Account JSON file path (MUST BE absolute path)>"
+SERVICE_ACCOUNT_EMAIL="<service account e-mail address is here>"
+REGION=<Region is here>
+ZONE=${REGION}-b
+# https://cloud.google.com/compute/docs/general-purpose-machines
+# recommended MACHINE_TYPE is e2-standard-2
+MACHINE_TYPE=<Machine type is here>
+TARGET_HOST=<Target Host is here>
+
+RED=`tput setaf 1`
+ORG_PATH := ${CURDIR}
+
+ENVS = \
+	export TF_VAR_PROJECT_ID=$(PROJECT_ID); \
+	export TF_VAR_GOOGLE_APPLICATION_CREDENTIALS=$(CREDENTIALS); \
+	export TF_VAR_CLUSTER_NAME=$(CLUSTER_NAME); \
+	export TF_VAR_REGION=$(REGION); \
+	export TF_VAR_ZONE=$(ZONE); \
+	export TF_VAR_MACHINE_TYPE=$(MACHINE_TYPE); \
+	export TF_VAR_SERVICE_ACCOUNT_EMAIL=$(SERVICE_ACCOUNT_EMAIL); \
+	export TF_VAR_TARGET_HOST=$(TARGET_HOST); \
+
+
+# Clean up all environment at once
+.PHONY: clean_all
+clean_all: ## Clean up all environment. Remove all states and terraform cache files.
+	printf "${RED}Clean up 0-build-cluster\n\n"; \
+	cd projects/distributed-load-testing-using-kubernetes-locust/0-build-cluster; rm -fR terraform.* .terraform*; cd ${ORG_PATH}; \
+	printf "${RED}Clean up 1-build-monitoring\n\n"; \
+	cd projects/distributed-load-testing-using-kubernetes-locust/1-build-monitoring; rm -fR terraform.* .terraform*; cd ${ORG_PATH}; \
+	printf "${RED}Clean up 2-deploy-locust\n\n"; \
+	cd projects/distributed-load-testing-using-kubernetes-locust/2-deploy-locust; rm -fR terraform.* .terraform*; cd ${ORG_PATH}; \
+	printf "${RED}Done\n"; \
+
+
+# Setup all environment at once
+.PHONY: init_all
+init_all: ## Initialize all environment
+	printf "${RED}Init 0-build-cluster\n\n"; \
+	cd projects/distributed-load-testing-using-kubernetes-locust/0-build-cluster; terraform init -upgrade; cd ${ORG_PATH}; \
+	printf "${RED}Init 1-build-monitoring\n\n"; \
+	cd projects/distributed-load-testing-using-kubernetes-locust/1-build-monitoring; terraform init -upgrade; cd ${ORG_PATH}; \
+	printf "${RED}Init 2-deploy-locust\n\n"; \
+	cd projects/distributed-load-testing-using-kubernetes-locust/2-deploy-locust; terraform init -upgrade; cd ${ORG_PATH}; \
+	printf "${RED}Done\n"; \
+
+.PHONY: gcloud_init
+gcloud_init: ## Init gcloud command
+	./gcloud_init.sh "${PROJECT_ID}" "${ZONE}"; \
+	projects/distributed-load-testing-using-kubernetes-locust/0-build-cluster/gcloud_conf.sh; \
+
+# Build Cluster
+.PHONY: build_cluster
+build_cluster: ## Build performance testing environment on GKE
+	printf "${RED}Building 0-build-cluster\n\n"; \
+	cd projects/distributed-load-testing-using-kubernetes-locust/0-build-cluster; ${ENVS} terraform apply -refresh=false -auto-approve; cd ${ORG_PATH}; \
+	# printf "${RED}Building 1-build-monitoring\n\n"; \
+	# cd projects/distributed-load-testing-using-kubernetes-locust/1-build-monitoring; ${ENVS} terraform apply -refresh=false -auto-approve; cd ${ORG_PATH}; \
+	printf "${RED}Done\n"; \
+
+.PHONY: build
+build: build_cluster gcloud_init ## Build performance testing environment on GKE
+
+# Deploy locust
+.PHONY: a_locust
+a_locust: ## Deploy the locust, grafana and influxdb to the GKE
+	printf "${RED}Building 2-deploy-locust\n\n"; \
+	cd projects/distributed-load-testing-using-kubernetes-locust/2-deploy-locust; ${ENVS} terraform apply -refresh=false -auto-approve; cd ${ORG_PATH}; \
+	printf "${RED}Done\n"; \
+
+# Delete locust environment at once
+.PHONY: d_locust
+d_locust: ## Delete locust, grafana and influxdb from GKE
+	printf "${RED}Tearing down 2-deploy-locust\n\n"; \
+	cd projects/distributed-load-testing-using-kubernetes-locust/2-deploy-locust; ${ENVS} terraform destroy -auto-approve; cd ${ORG_PATH}; \
+	printf "${RED}Done\n"; \
+
+# Plan all environment at once
+.PHONY: p_all
+p_all: ## plan all terraform states
+	printf "${RED}Planning 0-build-cluster\n\n"; \
+	cd projects/distributed-load-testing-using-kubernetes-locust/0-build-cluster; ${ENVS} terraform plan; cd ${ORG_PATH}; \
+	printf "${RED}Planning 1-build-monitoring\n\n"; \
+	cd projects/distributed-load-testing-using-kubernetes-locust/1-build-monitoring; ${ENVS} terraform plan; cd ${ORG_PATH}; \
+	printf "${RED}Planning 2-deploy-locust\n\n"; \
+	cd projects/distributed-load-testing-using-kubernetes-locust/2-deploy-locust; ${ENVS} terraform plan; cd ${ORG_PATH}; \
+	printf "${RED}Done\n"; \
+
+# Delete all environment at once
+.PHONY: d_all
+d_all: ## Delete all environment
+	printf "${RED}Tearing down 2-deploy-locust\n\n"; \
+	cd projects/distributed-load-testing-using-kubernetes-locust/2-deploy-locust; ${ENVS} terraform destroy -auto-approve; cd ${ORG_PATH}; \
+	printf "${RED}Tearing down 1-build-monitoring\n\n"; \
+	cd projects/distributed-load-testing-using-kubernetes-locust/1-build-monitoring; ${ENVS} terraform destroy -auto-approve; cd ${ORG_PATH}; \
+	printf "${RED}Tearing down 0-build-cluster\n\n"; \
+	cd projects/distributed-load-testing-using-kubernetes-locust/0-build-cluster; ${ENVS} terraform destroy -auto-approve; cd ${ORG_PATH}; \
+	printf "${RED}Done\n"; \
+
+.PHONY: locust
+locust: ## connect to the locust
+	projects/distributed-load-testing-using-kubernetes-locust/0-build-cluster/locust_connect.sh; \
+
+.PHONY: refresh
+refresh: d_locust a_locust ## refresh locust config map and apply to locust cluster
+
+# format
+.PHONY: f
+f: ## terraform fmt at the directory where tf files exists
+	terraform fmt -recursive
+
+# Delete
+.PHONY: d
+d: ## terraform destroy at the directory where tf files exists. ex: make d CONFIG=<target directory full path>
+	cd $(CONFIG); \
+	${ENVS} terraform destroy -auto-approve
+
+# Apply
+.PHONY: a
+a: ## terraform apply at the directory where tf files exists. ex: make a CONFIG=<target directory full path>
+	cd $(CONFIG); \
+	${ENVS} terraform apply -refresh=false -auto-approve
+
+# Plan
+.PHONY: p
+p: ## terraform plan at the directory where tf files exists. ex: make p CONFIG=<target directory full path>
+	cd $(CONFIG); \
+	${ENVS} terraform plan
+
+.PHONY: help
+help: ## Display this help screen
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'

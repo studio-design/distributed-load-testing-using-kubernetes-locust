@@ -1,0 +1,39 @@
+auth:
+  ## @param auth.enabled Enable/disable authentication (Variable to keep compatibility with InfluxDB&trade; v1, in v2 it will be ignored)
+  ##
+  enabled: false
+
+## @section Exposing parameters
+
+## Configure the ingress resource that allows you to access the
+## influxdb installation. Set up the URL
+## ref: http://kubernetes.io/docs/user-guide/ingress/
+##
+ingress:
+  ## @param ingress.enabled Enable ingress controller resource
+  ##
+  enabled: true
+
+persistence:
+  ## @param persistence.enabled Enable data persistence
+  ##
+  enabled: true
+  ## @param persistence.existingClaim Use a existing PVC which must be created manually before bound
+  ## If defined, PVC must be created manually before volume will be bound
+  ## The value is evaluated as a template
+  ##
+  existingClaim: ""
+  ## @param persistence.storageClass Specify the `storageClass` used to provision the volume
+  ## If defined, storageClassName: <storageClass>
+  ## If set to "-", storageClassName: "", which disables dynamic provisioning
+  ## If undefined (the default) or set to null, no storageClassName spec is
+  ## set, choosing the default provisioner.
+  ##
+  storageClass: ""
+  ## @param persistence.accessModes Access mode of data volume
+  ##
+  accessModes:
+    - ReadWriteOnce
+  ## @param persistence.size Size of data volume
+  ##
+  size: 8Gi

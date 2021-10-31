@@ -1,0 +1,16 @@
+.env
+*.out
+Makefile
+.terraform
+.terraform*
+*.tfstate*
+.idea
+.vscode
+error.json
+log.txt
+kubeconfig
+gcloud_conf.sh
+locust_connect.sh
+terraform.png
+locust/venv
+__pycache__
